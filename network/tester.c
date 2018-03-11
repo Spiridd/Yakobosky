@@ -5,9 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+// 1 <= n <= 24
 #define MAX_COMPS (127+1)
 
-struct comparator
+struct Comparator
 {
     int up;
     int down;
@@ -17,23 +18,22 @@ void fillin(int *v, int n, int value)
 {
     for(int i=n-1; i>=0; --i)
     {
-        v[i] = value % 2;
-        value /= 2;
+        v[i] = value & 1;
+        value = value >> 1;
     }
 }
 
-void compare_and_swap(int *left, int *right)
+void compare_and_swap(int *up, int *down)
 {
-    if (*left > *right)
+    if (*up > *down)
     {
-        int temp = *left;
-        *left = *right;
-        *right = temp;
+        int temp = *up;
+        *up = *down;
+        *down = temp;
     }
 }
 
-// BUG function
-void sort_with_comps(int *v, int n, struct comparator *comps, int n_comps)
+void sort_with_comps(int *v, int n, struct Comparator *comps, int n_comps)
 {
     for(int i=0; i<n_comps; ++i)
     {
@@ -63,7 +63,7 @@ void print_vector(int *v, int n)
 
 int main()
 {
-    struct comparator comps[MAX_COMPS];
+    struct Comparator comps[MAX_COMPS];
     FILE *f = fopen("res.txt", "r");
     if (f==NULL)
     {
@@ -86,6 +86,7 @@ int main()
     const int n_tacts = comps[index].down;
     fclose(f);
 
+    // v is to be sorted
     int * const v = malloc(n*sizeof(int));
     if (v == NULL)
     {
@@ -96,8 +97,8 @@ int main()
     // all permutations
     for(int i=0; i<(1<<n); ++i)
     {
-        /* uncomment to see nice output */
-        //printf("-------i=%d-------\n", i);
+        /* uncomment to see output (it is huge) */
+        //printf("----------i=%d--------\n", i);
         fillin(v, n, i);
         //print_vector(v, n);
         sort_with_comps(v, n, comps, n_comps);
@@ -105,8 +106,11 @@ int main()
         if (!is_sorted(v, n))
         {
             printf("not sorted, n=%d, i=%d\n", n, i);
+            exit(EXIT_FAILURE);
         }
     }
+    free(v);
+    printf("n = %d passed\n", n);
 
     return 0;
 }

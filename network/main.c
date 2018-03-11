@@ -7,24 +7,22 @@
 #include <string.h>
 #include <assert.h>
 
-static int comps = 0;
-
-void process_comparator(int up, int down, int *buf)
+void process_comparator(int up, int down, int *tacts, int *n_comparators)
 {
     printf("%d %d\n", up, down);
-    ++comps;
-    const int tacts = buf[up] >= buf[down] ? buf[up] : buf[down];
-    buf[up] = buf[down] = tacts+1;
+    ++(*n_comparators);
+    const int current = tacts[up] >= tacts[down] ? tacts[up] : tacts[down];
+    tacts[up] = tacts[down] = current+1;
 }
 
-int generate_single_swap_network(int first, int size, int stride, int *buf)
+int generate_single_swap_network(int first, int size, int stride, int *tacts, int *n_comparators)
 {
     int up = first;
     int down = up+stride;
     const int max_number = first+size*stride;
     while (down < max_number)
     {
-        process_comparator(up, down, buf);
+        process_comparator(up, down, tacts, n_comparators);
         up = down+stride;
         down = up+stride;
     }
@@ -32,25 +30,25 @@ int generate_single_swap_network(int first, int size, int stride, int *buf)
 }
 
 void generate_swap_network(int first_left, int size_left, int first_right,
-        int size_right, int stride, int *buf)
+        int size_right, int stride, int *tacts, int *n_comparators)
 {
     assert(size_left*size_right > 1);
-    int up = generate_single_swap_network(first_left+stride, size_left-1, stride, buf);
-    if (up < 0) generate_single_swap_network(first_right, size_right, stride, buf);
+    const int up = generate_single_swap_network(first_left+stride, size_left-1, stride, tacts, n_comparators);
+    if (up < 0) generate_single_swap_network(first_right, size_right, stride, tacts, n_comparators);
     else
     {
-        process_comparator(up, first_right, buf);
-        generate_single_swap_network(first_right+stride, size_right-1, stride, buf);
+        process_comparator(up, first_right, tacts, n_comparators);
+        generate_single_swap_network(first_right+stride, size_right-1, stride, tacts, n_comparators);
     }
 }
 
 void generate_merge_network(int first_left, int size_left, int first_right,
-        int size_right, int stride, int *buf)
+        int size_right, int stride, int *tacts, int *n_comparators)
 {
-    if (size_left*size_right <= 0)  return;
+    if (size_left*size_right == 0)  return;
     if (size_left*size_right == 1)
     {
-        process_comparator(first_left, first_right, buf);
+        process_comparator(first_left, first_right, tacts, n_comparators);
         return;
     }
     // quantity of odd numbers in left part
@@ -58,21 +56,21 @@ void generate_merge_network(int first_left, int size_left, int first_right,
     // quantity of odd numbers in right part
     const int m = (size_right-1)/2 + 1;
     // merge odd
-    generate_merge_network(first_left, n, first_right, m, 2*stride, buf);
+    generate_merge_network(first_left, n, first_right, m, 2*stride, tacts, n_comparators);
     // merge even
-    generate_merge_network(first_left+stride, size_left-n, first_right+stride, size_right-m, 2*stride, buf);
+    generate_merge_network(first_left+stride, size_left-n, first_right+stride, size_right-m, 2*stride, tacts, n_comparators);
     // compare and swap
-    generate_swap_network(first_left, size_left, first_right, size_right, stride, buf);
+    generate_swap_network(first_left, size_left, first_right, size_right, stride, tacts, n_comparators);
 }
 
-void generate_sorting_network(int from, int n, int *buf)
+void generate_sorting_network(int from, int n, int *tacts, int *n_comparators)
 {
-    if (n <= 1) return;
+    if (n == 1) return;
     const int size_left = (n-1)/2 + 1;
     const int size_right = n-size_left;
-    generate_sorting_network(from, size_left, buf);
-    generate_sorting_network(from+size_left, size_right, buf);
-    generate_merge_network(from, size_left, from+size_left, size_right, 1, buf);
+    generate_sorting_network(from, size_left, tacts, n_comparators);
+    generate_sorting_network(from+size_left, size_right, tacts, n_comparators);
+    generate_merge_network(from, size_left, from+size_left, size_right, 1, tacts, n_comparators);
 }
 
 /*
@@ -86,16 +84,16 @@ void merge(int size_left, int size_right)
 }
 */
 
-void init_buf(int **buf_ptr, int n)
+void init_tacts(int **tacts_ptr, int n)
 {
-    *buf_ptr = malloc(n*sizeof(int));
-    int * const buf = *buf_ptr;
-    if (buf == NULL)
+    *tacts_ptr = malloc(n*sizeof(int));
+    int * const tacts = *tacts_ptr;
+    if (tacts == NULL)
     {
         fprintf(stderr, "cannot malloc %lu bytes\n", n*sizeof(int));
         exit(EXIT_FAILURE);
     }
-    for(int i=0; i<n; ++i)  buf[i] = 0;
+    for(int i=0; i<n; ++i)  tacts[i] = 0;
 }
 
 void sort(int n)
@@ -103,17 +101,18 @@ void sort(int n)
     assert(n>=0);
     printf("%d 0 0\n", n);
 
-    int *buf;
-    init_buf(&buf, n);
-    generate_sorting_network(0, n, buf);
+    int *tacts;
+    init_tacts(&tacts, n);
+    int n_comparators = 0;
+    generate_sorting_network(0, n, tacts, &n_comparators);
+    printf("%d\n", n_comparators);
 
-    printf("%d\n", comps); // global variable
-    int tacts = 0;
+    int max_tacts = 0;
     for(int i=0; i<n; ++i)
     {
-        if (buf[i] > tacts) tacts = buf[i];
+        if (tacts[i] > max_tacts) max_tacts = tacts[i];
     }
-    printf("%d\n", tacts);
+    printf("%d\n", max_tacts);
 }
 
 int main(int argc, char **argv)

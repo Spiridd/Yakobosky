@@ -1,0 +1,45 @@
+CC = gcc
+PARCC = mpixlc
+CFLAGS = -std=c99
+FPUFLAGS = -qarch=450 -qtune=450
+TIME = 00:10:00
+MODE = SMP
+NNODES = 1
+N = 3200
+M = $(N)
+INFILE = ../res/in.bin
+OUTFILE = ../res/out.bin
+STDOUT = --stdout ../qsort/$(MODE).$(NNODES).$(N).out
+all: build
+build: generator serial parallel
+generator: generator.o point.o
+	@$(CC) -o generator generator.o point.o
+generator.o: generator.c
+	@$(CC) -c -o generator.o generator.c $(CFLAGS)
+point.o: point.c
+	@$(PARCC) -c -o point.o point.c $(FPUFLAGS)
+serial: serial.o sort.o point.o
+	@$(PARCC) -o serial serial.o sort.o point.o
+serial.o: serial.c
+	@$(PARCC) -c -o serial.o serial.c $(FPUFLAGS)
+sort.o: sort.c
+	@$(PARCC) -c -o sort.o sort.c $(FPUFLAGS)
+generate: generator
+	@./generator $(N) $(M) $(INFILE)
+sort_ser: serial
+	@mpisubmit.bg -w $(TIME) -m $(MODE) -np $(NNODES) $(STDOUT) serial $(INFILE) $(OUTFILE)
+sort_par: parallel
+	@mpisubmit.bg -w $(TIME) -m $(MODE) -np $(NNODES) $(STDOUT) parallel $(INFILE) $(OUTFILE)
+parallel: parallel.o sort.o point.o
+	@$(PARCC) -o parallel parallel.o sort.o point.o
+parallel.o: parallel.c
+	@$(PARCC) -c -o parallel.o parallel.c $(FPUFLAGS)
+test: tester
+	@./tester $(OUTFILE)
+tester: tester.o sort.o point.o
+	@$(CC) -o tester tester.o sort.o point.o
+tester.o: tester.c
+	@$(CC) -c -o tester.o tester.c $(CFLAGS)
+run: generate sort_par
+clean:
+	-@rm *.o $(INFILE) $(OUTFILE) generator serial tester parallel
